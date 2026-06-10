@@ -10,12 +10,28 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    - name: Cache APT Packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt/archives
+        key: ${{ runner.os }}-apt-${{ hashFiles('**/.github/workflows/*.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-apt-
+
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential flex texinfo libssl-dev libelf-dev libncurses-dev git zip unzip clang lld ccache gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+        sudo apt-get install -y bc bison build-essential flex texinfo libssl-dev libelf-dev libncurses-dev git zip unzip clang lld ccache gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-aarch64-linux-gnu
+
+    - name: Cache Kernel Source
+      id: cache-kernel
+      uses: actions/cache@v4
+      with:
+        path: kernel
+        key: ${{ runner.os }}-kernel-merlin-v2
 
     - name: Clone Kernel Source
+      if: steps.cache-kernel.outputs.cache-hit != 'true'
       run: |
         git clone https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git -b merlin-r-oss kernel
 
@@ -37,15 +53,16 @@ jobs:
         export ARCH=arm64
         export SUBARCH=arm64
         
-        # كتم خطأ الحماية للتوافق مع المترجم المدمج
+        # تعطيل حماية المكدس لتفادي رفض المترجم لها
         sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g' arch/arm64/configs/merlin_defconfig
         make merlin_defconfig
 
-        # بدء عملية البناء باستخدام المترجمات الرسمية المستقرة
+        # البناء مع توجيه صريح للمترجم والـ Linker
         make -j$(nproc --all) \
           ARCH=arm64 \
           CROSS_COMPILE=aarch64-linux-gnu- \
-          CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+          LD=aarch64-linux-gnu-ld.bfd
 
     - name: Package Kernel (AnyKernel3)
       run: |
