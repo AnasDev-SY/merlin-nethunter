@@ -13,7 +13,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential flex text-info libssl-dev libelf-dev libncurses-dev git zip unzip clang lld ccache
+        sudo apt-get install -y bc bison build-essential flex texinfo libssl-dev libelf-dev libncurses-dev git zip unzip clang lld ccache
 
     - name: Clone Kernel Source & Toolchain
       run: |
