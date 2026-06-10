@@ -13,12 +13,11 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential flex texinfo libssl-dev libelf-dev libncurses-dev git zip unzip clang lld ccache
+        sudo apt-get install -y bc bison build-essential flex texinfo libssl-dev libelf-dev libncurses-dev git zip unzip clang lld ccache gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-    - name: Clone Kernel Source & Toolchain
+    - name: Clone Kernel Source
       run: |
         git clone https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git -b merlin-r-oss kernel
-        git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b master --depth=1 clang
 
     - name: Configure and Enable NetHunter Features
       run: |
@@ -37,14 +36,14 @@ jobs:
         cd kernel
         export ARCH=arm64
         export SUBARCH=arm64
-        export PATH=$GITHUB_WORKSPACE/clang/clang-r487747c/bin:$PATH
+        
+        # كتم خطأ الحماية للتوافق مع المترجم المدمج
+        sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g' arch/arm64/configs/merlin_defconfig
+        make merlin_defconfig
+
+        # بدء عملية البناء باستخدام المترجمات الرسمية المستقرة
         make -j$(nproc --all) \
-          CC=clang \
-          AR=llvm-ar \
-          NM=llvm-nm \
-          OBJCOPY=llvm-objcopy \
-          OBJDUMP=llvm-objdump \
-          STRIP=llvm-strip \
+          ARCH=arm64 \
           CROSS_COMPILE=aarch64-linux-gnu- \
           CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
