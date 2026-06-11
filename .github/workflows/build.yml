@@ -21,14 +21,14 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential flex texinfo libssl-dev libelf-dev libncurses-dev git zip unzip clang lld ccache gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-aarch64-linux-gnu
+        sudo apt-get install -y bc bison build-essential flex texinfo libssl-dev libelf-dev libncurses-dev git zip unzip clang lld ccache gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-aarch64-linux-gnu cpio
 
     - name: Cache Kernel Source
       id: cache-kernel
       uses: actions/cache@v4
       with:
         path: kernel
-        key: ${{ runner.os }}-kernel-merlin-v2
+        key: ${{ runner.os }}-kernel-merlin-v3
 
     - name: Clone Kernel Source
       if: steps.cache-kernel.outputs.cache-hit != 'true'
@@ -39,12 +39,28 @@ jobs:
       run: |
         cd kernel
         export ARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        
+        # تهيئة افتراضية لملف الإعدادات
         make merlin_defconfig
+        
+        # حقن ميزات NetHunter
         echo "CONFIG_WIRELESS=y" >> arch/arm64/configs/merlin_defconfig
         echo "CONFIG_CFG80211=y" >> arch/arm64/configs/merlin_defconfig
         echo "CONFIG_MAC80211=y" >> arch/arm64/configs/merlin_defconfig
         echo "CONFIG_NL80211_TESTMODE=y" >> arch/arm64/configs/merlin_defconfig
         echo "CONFIG_USB_CONFIGFS_F_HID=y" >> arch/arm64/configs/merlin_defconfig
+        
+        # كسر حماية المكدس (Stack Protector) التي تسبب الفشل من جذور السورس
+        sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g' arch/arm64/configs/merlin_defconfig
+        sed -i 's/select CC_STACKPROTECTOR_STRONG//g' arch/arm64/Kconfig
+        sed -i 's/cc-option,-fstack-protector-strong/cc-option,-fstack-protector/g' Makefile
+        
+        # تعطيل kheaders لتفادي خطأ cpio المفقود في السيرفر
+        sed -i 's/CONFIG_IKHEADERS=y/# CONFIG_IKHEADERS is not set/g' arch/arm64/configs/merlin_defconfig
+
+        # إعادة تطبيق الإعدادات بعد التعديل الجذري
         make merlin_defconfig
 
     - name: Compile Kernel
@@ -52,17 +68,12 @@ jobs:
         cd kernel
         export ARCH=arm64
         export SUBARCH=arm64
-        
-        # تعطيل حماية المكدس لتفادي رفض المترجم لها
-        sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g' arch/arm64/configs/merlin_defconfig
-        make merlin_defconfig
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        export LD=aarch64-linux-gnu-ld.bfd
 
-        # البناء مع توجيه صريح للمترجم والـ Linker
-        make -j$(nproc --all) \
-          ARCH=arm64 \
-          CROSS_COMPILE=aarch64-linux-gnu- \
-          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-          LD=aarch64-linux-gnu-ld.bfd
+        # بدء عملية البناء الفورية
+        make -j$(nproc --all)
 
     - name: Package Kernel (AnyKernel3)
       run: |
