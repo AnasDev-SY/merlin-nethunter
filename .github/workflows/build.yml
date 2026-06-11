@@ -52,19 +52,24 @@ jobs:
         echo "CONFIG_NL80211_TESTMODE=y" >> arch/arm64/configs/merlin_defconfig
         echo "CONFIG_USB_CONFIGFS_F_HID=y" >> arch/arm64/configs/merlin_defconfig
         
-        # كسر حماية المكدس (Stack Protector) التي تسبب الفشل من جذور السورس
+        # كسر حماية المكدس (Stack Protector)
         sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g' arch/arm64/configs/merlin_defconfig
         sed -i 's/select CC_STACKPROTECTOR_STRONG//g' arch/arm64/Kconfig
         sed -i 's/cc-option,-fstack-protector-strong/cc-option,-fstack-protector/g' Makefile
         
-        # حذف فرض ميزة kheaders من جميع ملفات التكوين شجرياً لقتل المشكلة من جذرها
+        # الحل الجذري والنهائي لمشكلة cpio و kheaders: تفريغ السكربت بالكامل!
+        echo "#!/bin/bash" > kernel/gen_kheaders.sh
+        echo "exit 0" >> kernel/gen_kheaders.sh
+        chmod +x kernel/gen_kheaders.sh
+        
+        # حذف فرض ميزة kheaders من الملفات لتأكيد الإيقاف
         find . -name "Kconfig*" -exec sed -i 's/select IKHEADERS//g' {} +
         sed -i 's/CONFIG_IKHEADERS=y/# CONFIG_IKHEADERS is not set/g' arch/arm64/configs/merlin_defconfig
 
         # إعادة تطبيق الإعدادات وتوليد ملف الـ .config الفعلي
         make merlin_defconfig
         
-        # رصاصة الرحمة: إيقافها من الملف النهائي مباشرة قبل البناء
+        # التأكيد الأخير للإيقاف قبل البناء
         sed -i 's/CONFIG_IKHEADERS=y/# CONFIG_IKHEADERS is not set/g' .config
 
     - name: Compile Kernel
