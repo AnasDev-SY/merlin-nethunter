@@ -28,7 +28,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: kernel
-        key: ${{ runner.os }}-kernel-merlin-v3
+        key: ${{ runner.os }}-kernel-merlin-v4
 
     - name: Clone Kernel Source
       if: steps.cache-kernel.outputs.cache-hit != 'true'
@@ -57,11 +57,15 @@ jobs:
         sed -i 's/select CC_STACKPROTECTOR_STRONG//g' arch/arm64/Kconfig
         sed -i 's/cc-option,-fstack-protector-strong/cc-option,-fstack-protector/g' Makefile
         
-        # تعطيل kheaders لتفادي خطأ cpio المفقود في السيرفر
+        # حذف فرض ميزة kheaders من جميع ملفات التكوين شجرياً لقتل المشكلة من جذرها
+        find . -name "Kconfig*" -exec sed -i 's/select IKHEADERS//g' {} +
         sed -i 's/CONFIG_IKHEADERS=y/# CONFIG_IKHEADERS is not set/g' arch/arm64/configs/merlin_defconfig
 
-        # إعادة تطبيق الإعدادات بعد التعديل الجذري
+        # إعادة تطبيق الإعدادات وتوليد ملف الـ .config الفعلي
         make merlin_defconfig
+        
+        # رصاصة الرحمة: إيقافها من الملف النهائي مباشرة قبل البناء
+        sed -i 's/CONFIG_IKHEADERS=y/# CONFIG_IKHEADERS is not set/g' .config
 
     - name: Compile Kernel
       run: |
